@@ -78,8 +78,8 @@ if uploaded_file:
 
         # Annotated image
         annotated = r.plot()
-        annotated_rgb = cv2.cvtColor(annotated)
-        st.image(annotated_rgb, caption="Prediction Output", use_column_width=True)
+        # annotated_rgb = cv2.cvtColor(annotated)
+        st.image(annotated, caption="Prediction Output", use_column_width=True)
 
     else:
         st.warning("No face detected. Please upload a clear side face image.")
