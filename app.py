@@ -78,7 +78,7 @@ if uploaded_file:
 
         # Annotated image
         annotated = r.plot()
-        annotated_rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
+        annotated_rgb = cv2.cvtColor(annotated)
         st.image(annotated_rgb, caption="Prediction Output", use_column_width=True)
 
     else:
