@@ -22,12 +22,12 @@ from ultralytics import YOLO
 
 # ------------------ Page Config ------------------
 st.set_page_config(
-    page_title="Side Face Shape Prediction",
+    page_title="Facial Profile Prediction",
     layout="centered"
 )
 
-st.title("🧠 Side Face Shape Prediction")
-st.write("Upload a **side face image** to classify it as **Convex, Straight, or Concave** using YOLOv8.")
+st.title("Facial Profile Prediction")
+st.write("Upload a **Profile Photograph** to classify it as **Convex, Straight, or Concave** using YOLOv8.")
 
 # ------------------ Load Model ------------------
 @st.cache_resource
