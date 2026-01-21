@@ -1,12 +1,12 @@
 import streamlit as st
 import importlib, traceback
-import numpy as np
 from PIL import Image
+import numpy as np
 import cv2
 import dlib
 from ultralytics import YOLO
 
-# ------------------ Safe cv2 Import ------------------
+# ------------------ Safe OpenCV Import ------------------
 def try_import_cv2():
     try:
         return importlib.import_module("cv2")
@@ -16,125 +16,138 @@ def try_import_cv2():
 cv2_result = try_import_cv2()
 if isinstance(cv2_result, Exception):
     st.error("OpenCV not available")
-    st.text(traceback.format_exc())
     st.stop()
 
 # ------------------ Page Config ------------------
-st.set_page_config(page_title="Face Profile Analyzer", layout="centered")
-st.title("Face Profile Analyzer")
-st.write("Side Profile Classification + Frontal Landmark Symmetry")
+st.set_page_config(page_title="Facial Profile Analysis", layout="centered")
+st.title("Facial Profile Analysis System")
 
-# ------------------ Load YOLOv8 Model ------------------
+# ======================================================
+#               YOLOv8 SIDE PROFILE SECTION
+# ======================================================
+st.header("🧠 Side Face Profile Prediction (YOLOv8)")
+st.write("Upload a **side face image** to classify as **Convex / Straight / Concave**")
+
 @st.cache_resource
-def load_yolo(path):
-    return YOLO(path)
+def load_yolo(weights):
+    return YOLO(weights)
 
-model = load_yolo("best.pt")
+MODEL_PATH = "best.pt"
+model = load_yolo(MODEL_PATH)
 
-# ------------------ Load Dlib ------------------
+side_img = st.file_uploader("Upload Side Face Image", type=["jpg", "png", "jpeg"], key="side")
+
+if side_img:
+    image = Image.open(side_img).convert("RGB")
+    img_np = np.array(image)
+    st.image(image, caption="Uploaded Side Image", use_column_width=True)
+
+    with st.spinner("Running YOLOv8 prediction..."):
+        results = model.predict(source=img_np, conf=0.25, verbose=False)
+
+    r = results[0]
+    if r.boxes is not None and len(r.boxes.cls) > 0:
+        cls_id = int(r.boxes.cls[0])
+        conf = float(r.boxes.conf[0])
+        cls_name = model.names[cls_id]
+
+        st.success(f"### Prediction: **{cls_name.upper()}**")
+        st.write(f"Confidence: `{conf:.2f}`")
+
+        annotated = r.plot()
+        st.image(annotated, caption="YOLOv8 Output", use_column_width=True)
+    else:
+        st.warning("No side face detected")
+
+st.markdown("---")
+
+# ======================================================
+#           FRONTAL FACE LANDMARK SECTION
+# ======================================================
+st.header("📐 Frontal Face Landmark & Angle Analysis")
+st.write("Upload a **frontal face image** to visualize 68 landmarks and symmetry groups")
+
+# ---- Dlib Load ----
 detector = dlib.get_frontal_face_detector()
 predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
 
-# ------------------ Helper Functions ------------------
 def shape_to_np(shape):
     coords = np.zeros((68, 2), dtype="int")
     for i in range(68):
         coords[i] = (shape.part(i).x, shape.part(i).y)
     return coords
 
-def _line_intersection(p1, p2, q1, q2):
-    x1,y1 = p1; x2,y2 = p2
-    x3,y3 = q1; x4,y4 = q2
-    denom = (x1-x2)*(y3-y4)-(y1-y2)*(x3-x4)
-    if abs(denom) < 1e-6:
-        return None
-    px = ((x1*y2-y1*x2)*(x3-x4)-(x1-x2)*(x3*y4-y3*x4))/denom
-    py = ((x1*y2-y1*x2)*(y3-y4)-(y1-y2)*(x3*y4-y3*x4))/denom
-    return np.array([px, py], dtype=np.float32)
+def _angle_between(v1, v2):
+    n1, n2 = np.linalg.norm(v1), np.linalg.norm(v2)
+    if n1 < 1e-6 or n2 < 1e-6:
+        return 0.0
+    cos_t = np.dot(v1, v2) / (n1 * n2)
+    cos_t = np.clip(cos_t, -1.0, 1.0)
+    return float(np.degrees(np.arccos(cos_t)))
 
-def angle(v1, v2):
-    v1 = v1.astype(np.float32)
-    v2 = v2.astype(np.float32)
-    cos = np.dot(v1, v2) / (np.linalg.norm(v1)*np.linalg.norm(v2)+1e-6)
-    return np.degrees(np.arccos(np.clip(cos, -1, 1)))
+def draw_analysis(im, shape):
+    shape = shape.astype(np.float32)
 
-def draw_and_classify(im, shape):
     p27, p8 = shape[27], shape[8]
-    v_mid = p8 - p27
+    mid_vec = p8 - p27
 
-    p11,p9 = shape[11],shape[9]
-    p5,p7 = shape[5],shape[7]
+    # right jaw
+    p11, p9 = shape[11], shape[9]
+    right_vec = p9 - p11
 
-    v_r = p9 - p11
-    v_l = p7 - p5
+    # left jaw
+    p5, p7 = shape[5], shape[7]
+    left_vec = p7 - p5
 
-    right_angle = angle(v_r, v_mid)
-    left_angle = angle(v_l, v_mid)
+    right_angle = _angle_between(right_vec, mid_vec)
+    left_angle = _angle_between(left_vec, mid_vec)
     diff = abs(left_angle - right_angle)
 
+    # ---- group logic ----
     if diff <= 3:
-        group = "Group 1"
+        group = "Group 1 (Highly Symmetric)"
     elif diff <= 6:
-        group = "Group 2"
+        group = "Group 2 (Moderately Symmetric)"
     else:
-        group = "Group 3"
+        group = "Group 3 (Asymmetric)"
 
-    # draw landmarks
-    for (x,y) in shape:
-        cv2.circle(im,(int(x),int(y)),1,(0,255,0),-1)
+    # ---- Drawing ----
+    im = im.copy()
+    cv2.line(im, tuple(p27.astype(int)), tuple(p8.astype(int)), (0,255,0), 2)
+
+    cv2.line(im, tuple(p11.astype(int)), tuple(p9.astype(int)), (0,0,255), 2)
+    cv2.line(im, tuple(p5.astype(int)), tuple(p7.astype(int)), (255,0,0), 2)
+
+    cv2.putText(im, f"L:{left_angle:.1f}°", (10,30),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,0,0), 2)
+    cv2.putText(im, f"R:{right_angle:.1f}°", (10,55),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,255), 2)
+    cv2.putText(im, f"Diff:{diff:.1f}°", (10,80),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,0), 2)
 
     return im, left_angle, right_angle, diff, group
 
-# ================== SIDEBAR ==================
-st.sidebar.header("Upload Images")
+front_img = st.file_uploader("Upload Frontal Face Image", type=["jpg","png","jpeg"], key="front")
 
-side_img_file = st.sidebar.file_uploader("Side Face Image", ["jpg","png","jpeg"])
-front_img_file = st.sidebar.file_uploader("Frontal Face Image", ["jpg","png","jpeg"])
-
-# ================== SIDE PROFILE ==================
-if side_img_file:
-    st.subheader("Side Profile Prediction (YOLOv8)")
-    image = Image.open(side_img_file).convert("RGB")
-    img_np = np.array(image)
-    st.image(image, caption="Uploaded Side Face", use_column_width=True)
-
-    results = model.predict(img_np, conf=0.25, verbose=False)
-    r = results[0]
-
-    if r.boxes is not None and len(r.boxes.cls) > 0:
-        cid = int(r.boxes.cls[0])
-        conf = float(r.boxes.conf[0])
-        label = model.names[cid]
-
-        st.success(f"Prediction: **{label.upper()}**")
-        st.write(f"Confidence: `{conf:.2f}`")
-        st.image(r.plot(), caption="YOLO Output", use_column_width=True)
-    else:
-        st.warning("No side face detected")
-
-# ================== FRONTAL LANDMARK ==================
-if front_img_file:
-    st.subheader("Frontal Landmark Symmetry Analysis")
-    image = Image.open(front_img_file).convert("RGB")
-    img = np.array(image)
-    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+if front_img:
+    img = Image.open(front_img).convert("RGB")
+    img_np = np.array(img)
+    gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
 
     faces = detector(gray)
 
-    if len(faces)==0:
+    if len(faces) == 0:
         st.warning("No frontal face detected")
     else:
         for i, face in enumerate(faces):
             shape = predictor(gray, face)
             shape_np = shape_to_np(shape)
 
-            out_img, l_ang, r_ang, diff, group = draw_and_classify(img.copy(), shape_np)
+            out_img, la, ra, diff, group = draw_analysis(img_np, shape_np)
 
-            st.image(out_img, caption=f"Face {i+1} Landmarks", use_column_width=True)
-            st.write(f"Left Angle: `{l_ang:.2f}°`")
-            st.write(f"Right Angle: `{r_ang:.2f}°`")
-            st.write(f"Difference: `{diff:.2f}°`")
-            st.success(f"Category: **{group}**")
+            st.image(out_img, caption=f"Face {i+1} Analysis", use_column_width=True)
+            st.success(f"**{group}**")
+            st.write(f"Left Angle: `{la:.2f}°` | Right Angle: `{ra:.2f}°` | Diff: `{diff:.2f}°`")
 
 st.markdown("---")
-st.caption("YOLOv8 Side Profile • Dlib 68 Landmark • Group Classification")
+st.caption("YOLOv8 Side Profile + Dlib 68 Landmark Facial Symmetry Analysis")
