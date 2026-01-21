@@ -34,7 +34,7 @@ st.write("Upload a **side face image** to classify it as **Convex, Straight, or 
 def load_model(weights_path):
     return YOLO(weights_path)
 
-MODEL_PATH = "weights/best.pt"
+MODEL_PATH = "best.pt"
 
 try:
     model = load_model(MODEL_PATH)
