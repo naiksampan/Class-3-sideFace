@@ -20,12 +20,12 @@ if isinstance(cv2_result, Exception):
 
 # ------------------ Page Config ------------------
 st.set_page_config(page_title="Facial Profile Analysis", layout="centered")
-st.title("Facial Profile Analysis System")
+st.title("Comprehensive Facial Analysis System")
 
 # ======================================================
 #                 YOLOv8 SIDE PROFILE
 # ======================================================
-st.header("🧠 Side Face Profile Prediction (YOLOv8)")
+st.header("Facial profile analysis")
 
 @st.cache_resource
 def load_yolo(weights):
@@ -35,7 +35,7 @@ MODEL_PATH = "best.pt"
 model = load_yolo(MODEL_PATH)
 
 side_img = st.file_uploader(
-    "Upload Side Face Image (Convex / Straight / Concave)",
+    "Upload extraoral profile photograph",
     type=["jpg", "png", "jpeg"],
     key="side"
 )
@@ -67,7 +67,7 @@ st.markdown("---")
 # ======================================================
 #        FRONTAL FACE – 68 LANDMARK + INTERSECTION
 # ======================================================
-st.header("📐 Frontal Face Landmark & Symmetry Analysis")
+st.header("Facial Symmetry Analysis")
 
 detector = dlib.get_frontal_face_detector()
 predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
@@ -165,7 +165,7 @@ def draw_vertical_midline_and_jaw(im, shape):
 
 # ------------------ Upload Frontal Image ------------------
 front_img = st.file_uploader(
-    "Upload Frontal Face Image",
+    "Upload extraoral frontal photograph",
     type=["jpg", "png", "jpeg"],
     key="front"
 )
