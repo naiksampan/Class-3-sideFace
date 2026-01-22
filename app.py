@@ -191,4 +191,4 @@ if front_img:
             st.write(f"Left Angle: `{la:.2f}°` | Right Angle: `{ra:.2f}°` | Difference: `{diff:.2f}°`")
 
 st.markdown("---")
-st.caption("YOLOv8 Side Profile Classification + Vertical Midline Facial Symmetry Analysis")
+st.caption("Side Profile Classification + Vertical Midline Facial Symmetry Analysis")
